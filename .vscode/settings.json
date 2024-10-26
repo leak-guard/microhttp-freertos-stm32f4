@@ -1,5 +1,8 @@
 {
     "files.associations": {
-        "wchar.h": "c"
+        "wchar.h": "c",
+        "main.h": "c",
+        "stm32f4xx_hal.h": "c",
+        "stm32f4xx_hal_conf.h": "c"
     }
 }

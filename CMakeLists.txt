@@ -20,9 +20,7 @@ add_subdirectory(External)
 set(STARTUP_ASM "startup_stm32f411xe.s")
 
 file(GLOB_RECURSE SOURCES 
-    "Core/Src/*.*" 
-    "Drivers/STM32F4xx_HAL_Driver/*.*"
-    "Middleware/*.*"
+    "Core/Src/*.*"
 )
 
 include_directories(
@@ -35,7 +33,10 @@ include_directories(
 
 add_executable(${PROJECT_NAME}.elf ${SOURCES} ${STARTUP_ASM} ${LINKER_SCRIPT})
 target_include_directories(${PROJECT_NAME}.elf PRIVATE "${PROJECT_BINARY_DIR}")
-target_link_libraries(${PROJECT_NAME}.elf PRIVATE freertos_kernel microhttp)
+target_link_libraries(${PROJECT_NAME}.elf PRIVATE freertos_kernel microhttp stm32f4xx-hal-driver)
+
+# Pass HAL config to driver
+target_include_directories(stm32f4xx-hal-driver PRIVATE Core/Inc)
 
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map")
 
