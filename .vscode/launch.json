@@ -4,7 +4,7 @@
         {
             "name": "Cortex Debug",
             "cwd": "${workspaceRoot}",
-            "executable": "build/debug/adat.elf",
+            "executable": "build/debug/microhttp-port.elf",
             "request": "launch",
             "type": "cortex-debug",
             "servertype": "openocd",

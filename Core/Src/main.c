@@ -26,7 +26,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <FreeRTOS.h>
+#include <task.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,6 +60,25 @@ void PeriphCommonClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+TaskHandle_t blink1_task_handle, blink2_task_handle;
+StaticTask_t blink1_task_tcb, blink2_task_tcb;
+uint32_t blink1_task_stack[64], blink2_task_stack[64];
+
+void blink1_task(void* params)
+{
+  while (1) {
+    HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+    vTaskDelay(500);
+  }
+}
+
+void blink2_task(void* params)
+{
+  while (1) {
+    HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
+    vTaskDelay(550);
+  }
+}
 
 /* USER CODE END 0 */
 
@@ -105,15 +125,30 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  HAL_Delay(2000);
-  const char uart_test[] = "AT+GMR\r\n";
-  HAL_UART_Transmit(&huart1, uart_test, strlen(uart_test), 1000);
-  char response[2048];
-  HAL_UART_Receive(&huart1, response, 1024, 1000);
+  blink1_task_handle = xTaskCreateStatic(
+    blink1_task /* Task function */,
+    "BLINK1" /* Task name */,
+    64 /* Stack size */,
+    NULL /* parameters */,
+    1 /* Prority */,
+    blink1_task_stack /* Task stack address */,
+    &blink1_task_tcb /* Task control block */
+  );
+
+  blink2_task_handle = xTaskCreateStatic(
+    blink2_task /* Task function */,
+    "BLINK2" /* Task name */,
+    64 /* Stack size */,
+    NULL /* parameters */,
+    1 /* Prority */,
+    blink2_task_stack /* Task stack address */,
+    &blink2_task_tcb /* Task control block */
+  );
+
+  vTaskStartScheduler();
+
   while (1)
   {
-    HAL_GPIO_TogglePin(LD6_GPIO_Port, LD6_Pin);
-    HAL_Delay(500);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -189,6 +224,27 @@ void PeriphCommonClock_Config(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM3 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM3) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

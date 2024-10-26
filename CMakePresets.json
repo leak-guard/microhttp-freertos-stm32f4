@@ -42,25 +42,25 @@
       "name": "debug-build",
       "configurePreset": "debug",
       "displayName": "Firmware build (Debug)",
-      "targets": [ "adat.elf" ]
+      "targets": [ "microhttp-port.elf" ]
     },
     {
       "name": "debug-flash",
       "configurePreset": "debug",
       "displayName": "Firmware build & flash (Debug)",
-      "targets": [ "adat.elf", "flash" ]
+      "targets": [ "microhttp-port.elf", "flash" ]
     },
     {
       "name": "release-build",
       "configurePreset": "release",
       "displayName": "Firmware build (Release)",
-      "targets": [ "adat.elf" ]
+      "targets": [ "microhttp-port.elf" ]
     },
     {
       "name": "release-flash",
       "configurePreset": "release",
       "displayName": "Firmware build & flash (Release)",
-      "targets": [ "adat.elf", "flash" ]
+      "targets": [ "microhttp-port.elf", "flash" ]
     }
   ]
 }
