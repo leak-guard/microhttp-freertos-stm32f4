@@ -1,0 +1,66 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "debug",
+      "displayName": "Firmware (Debug)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "intelliSenseMode": "windows-msvc-arm",
+          "intelliSenseOptions": { "additionalCompilerArgs": "-D__GNUC__=10" }
+        }
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Firmware (Release)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": {
+          "intelliSenseMode": "windows-msvc-arm",
+          "intelliSenseOptions": { "additionalCompilerArgs": "-D__GNUC__=10" }
+        }
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug-build",
+      "configurePreset": "debug",
+      "displayName": "Firmware build (Debug)",
+      "targets": [ "adat.elf" ]
+    },
+    {
+      "name": "debug-flash",
+      "configurePreset": "debug",
+      "displayName": "Firmware build & flash (Debug)",
+      "targets": [ "adat.elf", "flash" ]
+    },
+    {
+      "name": "release-build",
+      "configurePreset": "release",
+      "displayName": "Firmware build (Release)",
+      "targets": [ "adat.elf" ]
+    },
+    {
+      "name": "release-flash",
+      "configurePreset": "release",
+      "displayName": "Firmware build & flash (Release)",
+      "targets": [ "adat.elf", "flash" ]
+    }
+  ]
+}
