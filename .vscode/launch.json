@@ -8,10 +8,17 @@
             "request": "launch",
             "type": "cortex-debug",
             "servertype": "openocd",
+            "breakAfterReset": false,
             "configFiles": [
                 "openocd.cfg",
             ],
-            "svdFile": "stm32f411.svd"
+            "liveWatch": {
+                "enabled": true,
+                "samplesPerSecond": 2
+            },
+            "serverArgs": [ "-c gdb_breakpoint_override hard"],
+            "svdFile": "stm32f411.svd",
+            "showDevDebugOutput": "raw"
         }
     ]
 }

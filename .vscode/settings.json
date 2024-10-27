@@ -1,8 +1,6 @@
 {
+    "editor.tabSize": 2,
     "files.associations": {
-        "wchar.h": "c",
-        "main.h": "c",
-        "stm32f4xx_hal.h": "c",
-        "stm32f4xx_hal_conf.h": "c"
+        "array": "cpp"
     }
 }

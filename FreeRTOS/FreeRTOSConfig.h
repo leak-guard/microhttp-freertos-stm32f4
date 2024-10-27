@@ -83,7 +83,7 @@ your application. */
 #define configASSERT
 #ifdef _DEBUG
 #undef configASSERT
-#define configASSERT( x ) if( ( x ) == 0 ) { vAssertCalled( __FILE__, __LINE__ ); }
+#define configASSERT( x ) if( ( x ) == pdFALSE ) { taskDISABLE_INTERRUPTS(); for( ;; ); }
 #endif
 
 /* FreeRTOS MPU specific definitions. */

@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "dma.h"
 #include "i2c.h"
 #include "i2s.h"
 #include "spi.h"
@@ -26,8 +27,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <FreeRTOS.h>
-#include <task.h>
+#include <firmware/rtos.hpp>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -60,25 +60,6 @@ void PeriphCommonClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-TaskHandle_t blink1_task_handle, blink2_task_handle;
-StaticTask_t blink1_task_tcb, blink2_task_tcb;
-uint32_t blink1_task_stack[64], blink2_task_stack[64];
-
-void blink1_task(void* params)
-{
-  while (1) {
-    HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-    vTaskDelay(500);
-  }
-}
-
-void blink2_task(void* params)
-{
-  while (1) {
-    HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
-    vTaskDelay(550);
-  }
-}
 
 /* USER CODE END 0 */
 
@@ -114,6 +95,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_I2C1_Init();
   MX_I2S2_Init();
   MX_I2S3_Init();
@@ -125,28 +107,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  blink1_task_handle = xTaskCreateStatic(
-    blink1_task /* Task function */,
-    "BLINK1" /* Task name */,
-    64 /* Stack size */,
-    NULL /* parameters */,
-    1 /* Prority */,
-    blink1_task_stack /* Task stack address */,
-    &blink1_task_tcb /* Task control block */
-  );
-
-  blink2_task_handle = xTaskCreateStatic(
-    blink2_task /* Task function */,
-    "BLINK2" /* Task name */,
-    64 /* Stack size */,
-    NULL /* parameters */,
-    1 /* Prority */,
-    blink2_task_stack /* Task stack address */,
-    &blink2_task_tcb /* Task control block */
-  );
-
-  vTaskStartScheduler();
-
+  rtos_main();
   while (1)
   {
     /* USER CODE END WHILE */

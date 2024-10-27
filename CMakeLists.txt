@@ -38,6 +38,10 @@ target_link_libraries(${PROJECT_NAME}.elf PRIVATE freertos_kernel microhttp stm3
 # Pass HAL config to driver
 target_include_directories(stm32f4xx-hal-driver PRIVATE Core/Inc)
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_definitions(-D_DEBUG)
+endif (CMAKE_BUILD_TYPE STREQUAL "Debug")
+
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map")
 
 set(HEX_FILE ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.hex)
