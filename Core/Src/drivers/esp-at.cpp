@@ -47,23 +47,6 @@ namespace lg
     );
 
     m_mutex = xSemaphoreCreateMutexStatic(&m_mutexBuffer);
-
-    /*sendCommandDirectAndWaitForOk("\r\n");
-    HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
-    sendCommandDirectAndWaitForOk("AT+RESTORE");
-    HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
-    sendCommandDirectAndWaitForOk("ATE0");
-    HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
-    sendCommandDirectAndWaitForOk("AT+SYSSTORE=0");
-    HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
-    bool response4 = sendCommandDirectAndWaitForOk("AT+CWMODE=2");
-    HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
-    bool response5 = sendCommandDirectAndWaitForOk("AT+CWSAP=\"espat_test\",\"passw0rd123\",5,3");
-    HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
-
-    if (!response5) {
-        Device::get().setError();
-    }*/
   }
 
   void EspAtDriver::initTaskMain()
