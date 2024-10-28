@@ -1,6 +1,8 @@
 {
     "editor.tabSize": 2,
     "files.associations": {
-        "array": "cpp"
-    }
+        "array": "cpp",
+        "optional": "cpp"
+    },
+    "cortex-debug.variableUseNaturalFormat": true
 }

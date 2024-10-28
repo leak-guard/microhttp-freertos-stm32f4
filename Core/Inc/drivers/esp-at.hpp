@@ -34,10 +34,15 @@ public:
 
     EspAtDriver(UART_HandleTypeDef* iface)
         : m_usart(iface)
+        , m_ready(false)
     {
     }
 
     void initialize();
+
+    bool isReady() const { return m_ready; }
+    EspResponse startTcpServer(std::uint16_t portNumber);
+    EspResponse stopTcpServer();
 
 private:
     class Lock {
@@ -57,6 +62,9 @@ private:
     void finishRequest(EspResponse response);
 
     EspResponse sendCommandDirectAndWait(const char* data);
+    EspResponse sendCommandBufferAndWait();
+
+    volatile bool m_ready;
 
     UART_HandleTypeDef* m_usart;
     TaskHandle_t m_initTaskHandle;

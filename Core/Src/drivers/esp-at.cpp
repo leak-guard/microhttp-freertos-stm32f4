@@ -49,6 +49,21 @@ namespace lg
     m_mutex = xSemaphoreCreateMutexStatic(&m_mutexBuffer);
   }
 
+  auto EspAtDriver::startTcpServer(std::uint16_t portNumber) -> EspResponse
+  {
+    auto lock = acquireLock();
+    m_txLineBuffer = "AT+CIPSERVER=1,";
+    m_txLineBuffer += StaticString<5>::Of(portNumber);
+    m_txLineBuffer += "\r\n";
+    return sendCommandBufferAndWait();
+  }
+
+  auto EspAtDriver::stopTcpServer() -> EspResponse
+  {
+    auto lock = acquireLock();
+    return sendCommandDirectAndWait("AT+CIPSERVER=0,1");
+  }
+
   void EspAtDriver::initTaskMain()
   {
     {
@@ -58,18 +73,22 @@ namespace lg
       HAL_UART_Receive_DMA(m_usart, 
         reinterpret_cast<uint8_t*>(m_uartRxBuffer.data()), m_uartRxBuffer.size());
 
-      sendCommandDirectAndWait("\r\n");
-
-      sendCommandDirectAndWait("AT+RESTORE");
-      xTaskNotifyWait(pdFALSE, ESP_READY, NULL, 1000);
+      vTaskDelay(1000);
+      sendCommandDirectAndWait("");
       
       // ESP module is now ready
 
-      sendCommandDirectAndWait("ATE0");
+      sendCommandDirectAndWait("ATE1");
       sendCommandDirectAndWait("AT+SYSSTORE=0");
       sendCommandDirectAndWait("AT+CWMODE=2");
+      sendCommandDirectAndWait("AT+CIPMUX=1");
       auto resp = sendCommandDirectAndWait("AT+CWSAP=\"espat_test2\",\"passw0rd123\",5,3");
-      HAL_GPIO_TogglePin(LD6_GPIO_Port, LD6_Pin);
+
+      if (resp != EspResponse::OK) {
+        Device::get().setError();
+      } else {
+        m_ready = true;
+      }
     }
     // Suspend self
     vTaskSuspend(NULL);
@@ -93,6 +112,9 @@ namespace lg
         }
 
         lineBuffer += dmaBuffer[dmaReadIdx++];
+        if (dmaReadIdx >= m_uartRxBuffer.size()) {
+          dmaReadIdx = 0;
+        }
 
         if (lineBuffer.EndsWith(crlf)) {
           lineBuffer.Truncate(lineBuffer.GetSize() - 2);
@@ -143,12 +165,19 @@ namespace lg
 
   auto EspAtDriver::sendCommandDirectAndWait(const char *data) -> EspResponse
   {
-    static constexpr auto MAX_RESPONSE_WAIT_TIME = 1000; // Wait for 1s
-
-    m_requestInitiator = xTaskGetCurrentTaskHandle();
     m_txLineBuffer = data;
-    m_txLineBuffer += STR("\r\n");
+    m_txLineBuffer += "\r\n";
 
+    return sendCommandBufferAndWait();
+  }
+
+  auto EspAtDriver::sendCommandBufferAndWait() -> EspResponse
+  {
+    static constexpr auto MAX_RESPONSE_WAIT_TIME = 1000; // Wait for 1s
+    
+    m_requestInitiator = xTaskGetCurrentTaskHandle();
+
+    // Wait until UART is ready for TX
     while (HAL_DMA_GetState(m_usart->hdmatx) != HAL_DMA_STATE_READY || m_usart->gState != HAL_UART_STATE_READY) {
       vTaskDelay(2);
     }

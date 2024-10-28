@@ -16,7 +16,7 @@ namespace lg
   {
     if (!m_instance.has_value())
     {
-      m_instance.emplace(Device());
+      m_instance.emplace();
     }
 
     return m_instance.value();
@@ -25,6 +25,7 @@ namespace lg
   void Device::initializeDrivers()
   {
     m_espDriver.initialize();
+    m_server.initialize();
   }
 
   void Device::setError()

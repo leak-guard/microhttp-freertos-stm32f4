@@ -82,3 +82,5 @@ add_custom_target(debug
         SOURCES openocd.cfg
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+message(STATUS "Test: ${CMAKE_SOURCE_DIR}")
