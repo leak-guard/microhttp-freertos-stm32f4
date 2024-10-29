@@ -42,7 +42,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_definitions(-D_DEBUG)
 endif (CMAKE_BUILD_TYPE STREQUAL "Debug")
 
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Map=${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Map=\"${PROJECT_BINARY_DIR}/${PROJECT_NAME}.map\"")
 
 set(HEX_FILE ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.hex)
 set(BIN_FILE ${PROJECT_BINARY_DIR}/${PROJECT_NAME}.bin)
@@ -56,7 +56,7 @@ Building ${BIN_FILE}")
 # Custom targets for interfacing with openocd
 
 add_custom_target(flash 
-        COMMAND openocd -f openocd.cfg -c init -c targets -c "reset init" -c "flash write_image erase ${HEX_FILE}" -c "reset run" -c shutdown
+        COMMAND openocd -f openocd.cfg -c init -c targets -c "reset init" -c "\"flash write_image erase \\\"${HEX_FILE}\\\"\"" -c "reset run" -c shutdown
         DEPENDS ${PROJECT_NAME}.elf
         COMMENT "Building and flashing ${PROJECT_NAME}.elf using openocd"
         SOURCES openocd.cfg

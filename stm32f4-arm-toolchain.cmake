@@ -24,7 +24,7 @@ set(COMMON_FLAGS "-mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -ff
 
 set(CMAKE_C_FLAGS "${COMMON_FLAGS}")
 set(CMAKE_CXX_FLAGS "${COMMON_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,-gc-sections -T ${LINKER_SCRIPT}")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,-gc-sections -T \"${LINKER_SCRIPT}\"")
 
 add_definitions(
     -D__weak=__attribute__\(\(weak\)\) 
