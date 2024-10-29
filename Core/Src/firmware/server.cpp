@@ -32,6 +32,10 @@ namespace lg {
       res << id[0] << '-' << id[1] << '-' << id[2] << "</b></p>";
     });
 
+    m_server.get("/test", [&](Request& req, Response& res) {
+      res << (uint32_t)&res;
+    });
+
     m_server.get("/test/:1", [&](Request& req, Response& res) {
       res << "I've got a parameter: " << req.params[1];
     });
