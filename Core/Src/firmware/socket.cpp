@@ -46,6 +46,41 @@ namespace lg {
   {
     m_esp = &Device::get().getEspAtDriver();
 
+    m_esp->onConnected = [&](int linkId) {
+      if (linkId >= 0 && linkId < MAX_CONNECTIONS) {
+        SocketMessage msg;
+        msg.messageType = SocketMessage::MessageType::CONNECTED;
+        xMessageBufferSend(m_workerTaskMessageBufferHandle.at(linkId), &msg, sizeof(SocketMessage), 100);
+      } else {
+        Device::get().setError();
+      }
+    };
+
+    m_esp->onClosed = [&](int linkId) {
+      if (linkId >= 0 && linkId < MAX_CONNECTIONS) {
+        SocketMessage msg;
+        msg.messageType = SocketMessage::MessageType::DISCONNECTED;
+        xMessageBufferSend(m_workerTaskMessageBufferHandle.at(linkId), &msg, sizeof(SocketMessage), 100);
+      } else {
+        Device::get().setError();
+      }
+    };
+
+    m_esp->onData = [&](int linkId, const char* data, std::size_t size) {
+      if (linkId >= 0 && linkId < MAX_CONNECTIONS && size <= EspAtDriver::MAX_DATA_CHUNK_SIZE) {
+        std::array<uint8_t, sizeof(SocketMessage) + EspAtDriver::MAX_DATA_CHUNK_SIZE> buffer;
+        SocketMessage* msg = reinterpret_cast<SocketMessage*>(buffer.data());
+        msg->messageType = SocketMessage::MessageType::DATA;
+        std::memcpy(msg->data, data, size);
+
+        std::size_t msgSize = sizeof(SocketMessage) + size;
+        xMessageBufferSend(m_workerTaskMessageBufferHandle.at(linkId), buffer.data(), msgSize, 100);
+      } else {
+        Device::get().setError();
+      }
+    };
+
+
     // Wait until ESP module is ready
     while (!m_esp->isReady()) {
       vTaskDelay(50);
@@ -61,18 +96,19 @@ namespace lg {
 
   void EspSocketImpl::close(int connectionId)
   {
-
+    m_esp->closeConnection(connectionId);
   }
 
   std::size_t EspSocketImpl::send(
     int connectionId, const char *data, std::size_t numBytes)
   {
-    return 0;
+    m_esp->sendData(connectionId, data, numBytes);
+    return numBytes;
   }
 
   void EspSocketImpl::finish(int connectionId)
   {
-
+    // Stub
   }
 
   void EspSocketImpl::workerMain(int workerId)

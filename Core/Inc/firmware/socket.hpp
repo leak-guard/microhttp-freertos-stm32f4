@@ -25,7 +25,7 @@ namespace lg
   class EspSocketImpl
   {
   public:
-    static inline constexpr auto MAX_CONNECTIONS = 5;
+    static inline constexpr auto  MAX_CONNECTIONS = EspAtDriver::MAX_CONNECTIONS;
     static inline constexpr auto BUFFER_SIZE = 1024;
 
     static void workerEntryPoint(void* params);
