@@ -1,4 +1,6 @@
 build
 .vs/*
+.idea
 !.vs/launch.vs.json
+cmake-build-debug
 Makefile
