@@ -55,13 +55,23 @@ Building ${BIN_FILE}")
 
 # Custom targets for interfacing with openocd
 
-add_custom_target(flash 
-        COMMAND openocd -f openocd.cfg -c init -c targets -c "reset init" -c "\"flash write_image erase \\\"${HEX_FILE}\\\"\"" -c "reset run" -c shutdown
-        DEPENDS ${PROJECT_NAME}.elf
-        COMMENT "Building and flashing ${PROJECT_NAME}.elf using openocd"
-        SOURCES openocd.cfg
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
+if (CMAKE_HOST_WIN32)
+    add_custom_target(flash
+            COMMAND openocd -f openocd.cfg -c init -c targets -c "reset init" -c "\"flash write_image erase \\\"${HEX_FILE}\\\"\"" -c "reset run" -c shutdown
+            DEPENDS ${PROJECT_NAME}.elf
+            COMMENT "Building and flashing ${PROJECT_NAME}.elf using openocd"
+            SOURCES openocd.cfg
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+else ()
+    add_custom_target(flash
+            COMMAND openocd -f openocd.cfg -c init -c targets -c "reset init" -c "flash write_image erase ${HEX_FILE}" -c "reset run" -c shutdown
+            DEPENDS ${PROJECT_NAME}.elf
+            COMMENT "Building and flashing ${PROJECT_NAME}.elf using openocd"
+            SOURCES openocd.cfg
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+endif ()
 
 add_custom_target(flashonly
         COMMAND openocd -f openocd.cfg -c init -c targets -c "reset init" -c "flash write_image erase ${HEX_FILE}" -c "reset run" -c shutdown
