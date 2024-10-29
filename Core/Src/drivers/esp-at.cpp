@@ -250,6 +250,10 @@ namespace lg
     }
 
     if (buffer == STR("SEND FAIL")) {
+      return finishRequest(EspResponse::SEND_FAIL);
+    }
+
+    if (buffer == STR("SET OK")) {
       return finishRequest(EspResponse::SET_OK);
     }
 
