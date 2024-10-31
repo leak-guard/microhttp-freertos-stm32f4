@@ -22,9 +22,11 @@ class EspAtDriver {
 public:
     static inline constexpr auto MAX_CONNECTIONS = 5;
     static inline constexpr auto MAX_DATA_CHUNK_SIZE = 256;
+    static inline constexpr auto MAX_INACTIVITY_TIME_MS = 5000;
 
     static void initTaskEntryPoint(void* params);
     static void uartRxTaskEntryPoint(void* params);
+    static void connectionCloserEntryPoint(void* params);
 
     enum class EspResponse {
         OK,
@@ -44,6 +46,8 @@ public:
         , m_waitingForPrompt(false)
         , m_ipdLinkId(0)
         , m_ipdRemainingBytes(0)
+        , m_connectionOpen({ false })
+        , m_connectionLastActivity({ 0 })
     {
     }
 
@@ -73,6 +77,7 @@ private:
     Lock acquireLock() { return Lock(this); }
     void initTaskMain();
     void uartRxTaskMain();
+    void connectionCloserMain();
 
     void parseEspResponse(const StaticString<ESP_LINE_BUFFER_SIZE>& buffer);
     bool parseEspNotification(const StaticString<ESP_LINE_BUFFER_SIZE>& buffer);
@@ -81,6 +86,7 @@ private:
     void gotConnect(int linkId);
     void gotClosed(int linkId);
     void gotData(int linkId, const char* data, std::size_t size);
+    void closeIdleConnections();
 
     void parseInputData(const StaticString<ESP_LINE_BUFFER_SIZE>& buffer);
 
@@ -91,18 +97,29 @@ private:
     volatile bool m_ready;
 
     UART_HandleTypeDef* m_usart;
+    
     TaskHandle_t m_initTaskHandle;
     TaskHandle_t m_uartRxTaskHandle;
+    TaskHandle_t m_connectionCloserTaskHandle;
     StaticTask_t m_initTaskTcb;
     StaticTask_t m_uartRxTaskTcb;
+    StaticTask_t m_connectionCloserTaskTcb;
     std::array<configSTACK_DEPTH_TYPE, 64> m_initTaskStack;
     std::array<configSTACK_DEPTH_TYPE, 256> m_uartRxTaskStack;
+    std::array<configSTACK_DEPTH_TYPE, 64> m_connectionCloserTaskStack;
 
     SemaphoreHandle_t m_mutex;
     StaticSemaphore_t m_mutexBuffer;
 
+    StaticQueue_t m_connectionsToCloseQ;
+    QueueHandle_t m_connectionsToCloseHandle;
+    std::array<int, 16> m_connectionsToCloseBuffer;
+
     StaticString<ESP_LINE_BUFFER_SIZE> m_txLineBuffer;
     std::array<char, 16384> m_uartRxBuffer;
+    std::array<volatile bool, MAX_CONNECTIONS> m_connectionOpen;
+    std::array<volatile TickType_t, MAX_CONNECTIONS> m_connectionLastActivity;
+
     volatile EspResponse m_currentResponse;
     volatile TaskHandle_t m_requestInitiator;
     volatile bool m_waitingForPrompt;

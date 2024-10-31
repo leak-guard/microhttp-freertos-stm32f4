@@ -22,6 +22,12 @@ namespace lg
     instance->uartRxTaskMain();
   }
 
+  void EspAtDriver::connectionCloserEntryPoint(void *params)
+  {
+    EspAtDriver *instance = reinterpret_cast<EspAtDriver *>(params);
+    instance->connectionCloserMain();
+  }
+
   void EspAtDriver::initialize()
   {
     m_requestInitiator = nullptr;
@@ -46,7 +52,24 @@ namespace lg
       &m_uartRxTaskTcb /* Task control block */
     );
 
+    m_connectionCloserTaskHandle = xTaskCreateStatic(
+      &EspAtDriver::connectionCloserEntryPoint /* Task function */,
+      "ESP Conn Closer" /* Task name */,
+      m_connectionCloserTaskStack.size() /* Stack size */,
+      this /* parameters */,
+      2 /* Prority */,
+      m_connectionCloserTaskStack.data() /* Task stack address */,
+      &m_connectionCloserTaskTcb /* Task control block */
+    );
+
     m_mutex = xSemaphoreCreateMutexStatic(&m_mutexBuffer);
+
+    m_connectionsToCloseHandle = xQueueCreateStatic(
+      m_connectionsToCloseBuffer.size(),
+      sizeof(m_connectionsToCloseBuffer[0]),
+      reinterpret_cast<std::uint8_t*>(m_connectionsToCloseBuffer.data()),
+      &m_connectionsToCloseQ
+    );
   }
 
   auto EspAtDriver::startTcpServer(std::uint16_t portNumber) -> EspResponse
@@ -66,6 +89,8 @@ namespace lg
 
   auto EspAtDriver::closeConnection(int linkId) -> EspResponse
   {
+    m_connectionOpen.at(linkId) = false;
+
     auto lock = acquireLock();
     m_txLineBuffer = "AT+CIPCLOSE=";
     m_txLineBuffer += StaticString<1>::Of(linkId);
@@ -75,6 +100,9 @@ namespace lg
 
   auto EspAtDriver::closeAllConnections() -> EspResponse
   {
+    static const auto falsch = false;
+    m_connectionOpen.fill(falsch);
+
     auto lock = acquireLock();
     return sendCommandDirectAndWait("AT+CIPCLOSE=5");
   }
@@ -84,6 +112,8 @@ namespace lg
   {
     static constexpr auto MAX_PROMPT_WAIT_TIME = 1000; // Wait for 1s
     auto lock = acquireLock();
+
+    m_connectionLastActivity.at(linkId) = xTaskGetTickCount();
 
     //xTaskNotifyWait(0, ESP_DATA_PROMPT, nullptr, 0);
     m_waitingForPrompt = true;
@@ -142,7 +172,7 @@ namespace lg
       
       // ESP module is now ready
 
-      sendCommandDirectAndWait("ATE1");
+      sendCommandDirectAndWait("ATE0");
       sendCommandDirectAndWait("AT+SYSSTORE=0");
       sendCommandDirectAndWait("AT+CWMODE=2");
       sendCommandDirectAndWait("AT+CIPMODE=0");
@@ -173,6 +203,8 @@ namespace lg
 
     while (true) {
       while (true) {
+        closeIdleConnections();
+        
         uint32_t dmaWriteIdx = m_uartRxBuffer.size() - __HAL_DMA_GET_COUNTER(m_usart->hdmarx);
         if (dmaReadIdx == dmaWriteIdx) {
           // No more bytes to read
@@ -235,6 +267,16 @@ namespace lg
       }
 
       vTaskDelay(5);
+    }
+  }
+
+  void EspAtDriver::connectionCloserMain()
+  {
+    while (true) {
+      int connectionId;
+      if (xQueueReceive(m_connectionsToCloseHandle, &connectionId, portMAX_DELAY) == pdPASS) {
+        closeConnection(connectionId);
+      }
     }
   }
 
@@ -331,6 +373,11 @@ namespace lg
 
   void EspAtDriver::gotConnect(int linkId)
   {
+    if (linkId >= 0 && linkId < MAX_CONNECTIONS) {
+      m_connectionOpen.at(linkId) = true;
+      m_connectionLastActivity.at(linkId) = xTaskGetTickCount();
+    }
+
     if (onConnected) {
       onConnected(linkId);
     }
@@ -338,6 +385,10 @@ namespace lg
 
   void EspAtDriver::gotClosed(int linkId)
   {
+    if (linkId >= 0 && linkId < MAX_CONNECTIONS) {
+      m_connectionOpen.at(linkId) = false;
+    }
+
     if (onClosed) {
       onClosed(linkId);
     }
@@ -345,8 +396,27 @@ namespace lg
 
   void EspAtDriver::gotData(int linkId, const char* data, std::size_t size)
   {
+    if (linkId >= 0 && linkId < MAX_CONNECTIONS) {
+      m_connectionLastActivity.at(linkId) = xTaskGetTickCount();
+    }
+
     if (onData) {
       onData(linkId, data, size);
+    }
+  }
+
+  void EspAtDriver::closeIdleConnections()
+  {
+    TickType_t currentTick = xTaskGetTickCount();
+
+    for (size_t i = 0; i < MAX_CONNECTIONS; ++i) {
+      if (m_connectionOpen.at(i)) {
+        if (currentTick - m_connectionLastActivity.at(i) > MAX_INACTIVITY_TIME_MS) {
+          int connectionId = i;
+          xQueueSend(m_connectionsToCloseHandle, &connectionId, 0);
+          gotClosed(connectionId);
+        }
+      }
     }
   }
 
