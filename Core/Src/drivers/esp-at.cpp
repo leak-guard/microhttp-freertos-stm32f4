@@ -210,6 +210,8 @@ namespace lg
           if (exit) {
             break;
           }
+
+          continue;
         }
 
         lineBuffer += dmaBuffer[dmaReadIdx++];
@@ -226,7 +228,9 @@ namespace lg
             lineBuffer.Clear();
           }
         } else if (lineBuffer.GetSize() == 1 && *lineBuffer.begin() == '>') {
-          gotPrompt();
+          if (gotPrompt()) {
+            lineBuffer.Clear();
+          }
         }
       }
 
@@ -308,17 +312,21 @@ namespace lg
     xTaskNotify(requestInitiator, ESP_RX_DONE, eSetBits);
   }
 
-  void EspAtDriver::gotPrompt()
+  bool EspAtDriver::gotPrompt()
   {
     auto requestInitiator = m_requestInitiator;
     if (!requestInitiator) {
-      return;
+      return false;
     }
 
     if (m_waitingForPrompt) {
       m_requestInitiator = nullptr;
       m_waitingForPrompt = false;
+
+      return true;
     }
+
+    return false;
   }
 
   void EspAtDriver::gotConnect(int linkId)

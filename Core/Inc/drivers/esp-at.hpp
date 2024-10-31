@@ -77,7 +77,7 @@ private:
     void parseEspResponse(const StaticString<ESP_LINE_BUFFER_SIZE>& buffer);
     bool parseEspNotification(const StaticString<ESP_LINE_BUFFER_SIZE>& buffer);
     void finishRequest(EspResponse response);
-    void gotPrompt();
+    bool gotPrompt();
     void gotConnect(int linkId);
     void gotClosed(int linkId);
     void gotData(int linkId, const char* data, std::size_t size);

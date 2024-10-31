@@ -2,6 +2,8 @@
 
 #include <firmware/device.hpp>
 
+#include <gpio.h>
+
 namespace lg {
 
   void EspSocketImpl::workerEntryPoint(void* params)
@@ -50,7 +52,7 @@ namespace lg {
       if (linkId >= 0 && linkId < MAX_CONNECTIONS) {
         SocketMessage msg;
         msg.messageType = SocketMessage::MessageType::CONNECTED;
-        xMessageBufferSend(m_workerTaskMessageBufferHandle.at(linkId), &msg, sizeof(SocketMessage), 100);
+        xMessageBufferSend(m_workerTaskMessageBufferHandle.at(linkId), &msg, sizeof(SocketMessage), portMAX_DELAY);
       } else {
         Device::get().setError();
       }
@@ -60,7 +62,7 @@ namespace lg {
       if (linkId >= 0 && linkId < MAX_CONNECTIONS) {
         SocketMessage msg;
         msg.messageType = SocketMessage::MessageType::DISCONNECTED;
-        xMessageBufferSend(m_workerTaskMessageBufferHandle.at(linkId), &msg, sizeof(SocketMessage), 100);
+        xMessageBufferSend(m_workerTaskMessageBufferHandle.at(linkId), &msg, sizeof(SocketMessage), portMAX_DELAY);
       } else {
         Device::get().setError();
       }
@@ -74,7 +76,7 @@ namespace lg {
         std::memcpy(msg->data, data, size);
 
         std::size_t msgSize = sizeof(SocketMessage) + size;
-        xMessageBufferSend(m_workerTaskMessageBufferHandle.at(linkId), buffer.data(), msgSize, 100);
+        xMessageBufferSend(m_workerTaskMessageBufferHandle.at(linkId), buffer.data(), msgSize, portMAX_DELAY);
       } else {
         Device::get().setError();
       }
@@ -102,7 +104,11 @@ namespace lg {
   std::size_t EspSocketImpl::send(
     int connectionId, const char *data, std::size_t numBytes)
   {
-    m_esp->sendData(connectionId, data, numBytes);
+    auto response = m_esp->sendData(connectionId, data, numBytes);
+    if (response != EspAtDriver::EspResponse::SEND_OK) {
+      HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
+    }
+
     return numBytes;
   }
 

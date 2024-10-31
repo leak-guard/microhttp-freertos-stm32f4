@@ -14,11 +14,10 @@
             ],
             "liveWatch": {
                 "enabled": true,
-                "samplesPerSecond": 2
+                "samplesPerSecond": 5
             },
             "serverArgs": [ "-c gdb_breakpoint_override hard"],
-            "svdFile": "stm32f411.svd",
-            "showDevDebugOutput": "raw"
+            "svdFile": "stm32f411.svd"
         }
     ]
 }
