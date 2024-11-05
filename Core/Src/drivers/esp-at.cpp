@@ -75,6 +75,7 @@ namespace lg
   auto EspAtDriver::startTcpServer(std::uint16_t portNumber) -> EspResponse
   {
     auto lock = acquireLock();
+    clearResponsePrefix();
     m_txLineBuffer = "AT+CIPSERVER=1,";
     m_txLineBuffer += StaticString<5>::Of(portNumber);
     m_txLineBuffer += "\r\n";
@@ -84,6 +85,7 @@ namespace lg
   auto EspAtDriver::stopTcpServer() -> EspResponse
   {
     auto lock = acquireLock();
+    clearResponsePrefix();
     return sendCommandDirectAndWait("AT+CIPSERVER=0,1");
   }
 
@@ -92,6 +94,7 @@ namespace lg
     m_connectionOpen.at(linkId) = false;
 
     auto lock = acquireLock();
+    clearResponsePrefix();
     m_txLineBuffer = "AT+CIPCLOSE=";
     m_txLineBuffer += StaticString<1>::Of(linkId);
     m_txLineBuffer += "\r\n";
@@ -104,6 +107,7 @@ namespace lg
     m_connectionOpen.fill(falsch);
 
     auto lock = acquireLock();
+    clearResponsePrefix();
     return sendCommandDirectAndWait("AT+CIPCLOSE=5");
   }
 
@@ -114,6 +118,7 @@ namespace lg
     auto lock = acquireLock();
 
     m_connectionLastActivity.at(linkId) = xTaskGetTickCount();
+    clearResponsePrefix();
 
     //xTaskNotifyWait(0, ESP_DATA_PROMPT, nullptr, 0);
     m_waitingForPrompt = true;
@@ -127,12 +132,6 @@ namespace lg
       m_waitingForPrompt = false;
       return response;
     }
-
-    /*bool gotPrompt = xTaskNotifyWait(0, ESP_DATA_PROMPT, nullptr, MAX_PROMPT_WAIT_TIME);
-    if (!gotPrompt) {
-      m_waitingForPrompt = false;
-      return EspResponse::ESP_TIMEOUT;
-    }*/
 
     while (m_waitingForPrompt) {
       vTaskDelay(1);
@@ -158,6 +157,52 @@ namespace lg
     return m_currentResponse;
   }
 
+  auto EspAtDriver::setWifiMode(EspWifiMode mode) -> EspResponse
+  {
+    auto lock = acquireLock();
+    clearResponsePrefix();
+    m_txLineBuffer = "AT+CWMODE=";
+    m_txLineBuffer += StaticString<1>::Of(static_cast<int>(mode));
+    m_txLineBuffer += "\r\n";
+    return sendCommandBufferAndWait();
+  }
+
+  auto EspAtDriver::joinAccessPoint(const char* ssid, const char* password) -> EspResponse
+  {
+    static constexpr auto COMMAND_TIMEOUT = 30000;
+    auto lock = acquireLock();
+    clearResponsePrefix();
+
+    m_txLineBuffer = "AT+CWJAP=";
+    appendAtString(ssid);
+    m_txLineBuffer += ',';
+    appendAtString(password);
+
+    m_wifiStatus = EspWifiStatus::CONNECTING;
+
+    auto result = sendCommandBufferAndWait(COMMAND_TIMEOUT);
+
+    if (result != EspResponse::OK) {
+      m_wifiStatus = EspWifiStatus::DISCONNECTED;
+    }
+
+    return result;
+  }
+
+  auto EspAtDriver::listAccessPoints() -> EspResponse
+  {
+    static constexpr auto COMMAND_TIMEOUT = 10000;
+
+    auto lock = acquireLock();
+    setResponsePrefix("+CWLAP:");
+
+    auto response = sendCommandDirectAndWait("AT+CWLAP", COMMAND_TIMEOUT);
+
+    // TODO: parse response
+
+    return m_currentResponse;
+  }
+
   void EspAtDriver::initTaskMain()
   {
     {
@@ -174,13 +219,15 @@ namespace lg
 
       sendCommandDirectAndWait("ATE0");
       sendCommandDirectAndWait("AT+SYSSTORE=0");
-      sendCommandDirectAndWait("AT+CWMODE=2");
+      //sendCommandDirectAndWait("AT+CWMODE=2");
+      sendCommandDirectAndWait("AT+CWMODE=1");
       sendCommandDirectAndWait("AT+CIPMODE=0");
       sendCommandDirectAndWait("AT+CIPMUX=1");
       sendCommandDirectAndWait("AT+CIPDINFO=0");
       sendCommandDirectAndWait("AT+CIPV6=0");
       sendCommandDirectAndWait("AT+CIPRECVTYPE=5,0");
-      auto resp = sendCommandDirectAndWait("AT+CWSAP=\"espat_test2\",\"passw0rd123\",5,3");
+      //auto resp = sendCommandDirectAndWait("AT+CWSAP=\"espat_test2\",\"passw0rd123\",5,3");
+      auto resp = EspResponse::OK;
 
       if (resp != EspResponse::OK) {
         Device::get().setError();
@@ -188,6 +235,8 @@ namespace lg
         m_ready = true;
       }
     }
+
+    listAccessPoints();
     // Suspend self
     vTaskSuspend(NULL);
   }
@@ -280,6 +329,44 @@ namespace lg
     }
   }
 
+  void EspAtDriver::clearResponsePrefix()
+  {
+    taskENTER_CRITICAL();
+    m_responsePrefix.Clear();
+    taskEXIT_CRITICAL();
+  }
+
+  void EspAtDriver::setResponsePrefix(const char* data)
+  {
+    taskENTER_CRITICAL();
+    m_responsePrefix = data;
+    m_responseBuffer.Clear();
+    taskEXIT_CRITICAL();
+  }
+  
+  void EspAtDriver::appendAtString(const char* data)
+  {
+    m_txLineBuffer += '"';
+
+    while (true) {
+      char c = *data;
+
+      if (!c) {
+        break;
+      }
+
+      if (c == '\\' || c == ',' || c == '"') {
+        // Add backslash for escaping characters
+        m_txLineBuffer += '\\';
+      }
+
+      m_txLineBuffer += c;
+      ++data;
+    }
+
+    m_txLineBuffer += '"';
+  }
+
   void EspAtDriver::parseEspResponse(
     const StaticString<ESP_LINE_BUFFER_SIZE>& buffer)
   {
@@ -308,6 +395,21 @@ namespace lg
       return;
     }
 
+    if (buffer == STR("WIFI CONNECTED")) {
+      m_wifiStatus = EspWifiStatus::CONNECTED;
+      return;
+    }
+
+    if (buffer == STR("WIFI GOT IP")) {
+      m_wifiStatus = EspWifiStatus::DHCP_GOT_IP;
+      return;
+    }
+
+    if (buffer == STR("WIFI DISCONNECT")) {
+      m_wifiStatus = EspWifiStatus::DISCONNECTED;
+      return;
+    }
+
     if (buffer.EndsWith(STR("CONNECT"))) {
       if (buffer.begin()[1] == ',') {
         int linkId = buffer.begin()[0] - '0';
@@ -325,6 +427,11 @@ namespace lg
       }
       return gotClosed(0);
     }
+
+    if (!m_responsePrefix.IsEmpty() && buffer.StartsWith(m_responsePrefix)) {
+      m_responseBuffer += buffer;
+      m_responseBuffer += "\r\n";
+    }
   }
 
   bool EspAtDriver::parseEspNotification(
@@ -332,6 +439,11 @@ namespace lg
   {
     if (buffer.StartsWith(STR("+IPD,"))) {
       parseInputData(buffer);
+      return true;
+    }
+
+    if (buffer.StartsWith(STR("+MQTTSUB:"))) {
+      // TODO: parse MQTT events
       return true;
     }
 
@@ -436,18 +548,16 @@ namespace lg
     }
   }
 
-  auto EspAtDriver::sendCommandDirectAndWait(const char *data) -> EspResponse
+  auto EspAtDriver::sendCommandDirectAndWait(const char *data, std::uint32_t timeout) -> EspResponse
   {
     m_txLineBuffer = data;
     m_txLineBuffer += "\r\n";
 
-    return sendCommandBufferAndWait();
+    return sendCommandBufferAndWait(timeout);
   }
 
-  auto EspAtDriver::sendCommandBufferAndWait() -> EspResponse
+  auto EspAtDriver::sendCommandBufferAndWait(std::uint32_t timeout) -> EspResponse
   {
-    static constexpr auto MAX_RESPONSE_WAIT_TIME = 1000; // Wait for 1s
-    
     m_requestInitiator = xTaskGetCurrentTaskHandle();
 
     waitForDmaReady();
@@ -459,7 +569,7 @@ namespace lg
       return EspResponse::DRIVER_ERROR;
     }
 
-    bool gotRx = xTaskNotifyWait(0, ESP_RX_DONE, nullptr, MAX_RESPONSE_WAIT_TIME);
+    bool gotRx = xTaskNotifyWait(0, ESP_RX_DONE, nullptr, timeout);
     if (!gotRx) {
       return EspResponse::ESP_TIMEOUT;
     }
