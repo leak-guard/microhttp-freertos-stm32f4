@@ -107,6 +107,8 @@ namespace lg {
     auto response = m_esp->sendData(connectionId, data, numBytes);
     if (response != EspAtDriver::EspResponse::SEND_OK) {
       HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
+      vTaskDelay(5);
+      return 0;
     }
 
     return numBytes;

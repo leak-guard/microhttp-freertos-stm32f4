@@ -219,15 +219,15 @@ namespace lg
 
       sendCommandDirectAndWait("ATE0");
       sendCommandDirectAndWait("AT+SYSSTORE=0");
-      //sendCommandDirectAndWait("AT+CWMODE=2");
-      sendCommandDirectAndWait("AT+CWMODE=1");
+      sendCommandDirectAndWait("AT+CWMODE=2");
+      // sendCommandDirectAndWait("AT+CWMODE=1");
       sendCommandDirectAndWait("AT+CIPMODE=0");
       sendCommandDirectAndWait("AT+CIPMUX=1");
       sendCommandDirectAndWait("AT+CIPDINFO=0");
       sendCommandDirectAndWait("AT+CIPV6=0");
       sendCommandDirectAndWait("AT+CIPRECVTYPE=5,0");
-      //auto resp = sendCommandDirectAndWait("AT+CWSAP=\"espat_test2\",\"passw0rd123\",5,3");
-      auto resp = EspResponse::OK;
+      auto resp = sendCommandDirectAndWait("AT+CWSAP=\"espat_test2\",\"passw0rd123\",5,3");
+      // auto resp = EspResponse::OK;
 
       if (resp != EspResponse::OK) {
         Device::get().setError();
