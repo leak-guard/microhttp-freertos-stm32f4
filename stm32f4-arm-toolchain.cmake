@@ -20,7 +20,7 @@ set(CMAKE_SIZE arm-none-eabi-size)
 
 set(LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/STM32F411VETx_FLASH_fixed.ld)
 
-set(COMMON_FLAGS "-mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -ffunction-sections -fdata-sections -specs=nosys.specs -specs=nano.specs -lnosys")
+set(COMMON_FLAGS "-mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -ffunction-sections -fno-exceptions -fdata-sections -specs=nosys.specs -specs=nano.specs -lnosys")
 
 set(CMAKE_C_FLAGS "${COMMON_FLAGS}")
 set(CMAKE_CXX_FLAGS "${COMMON_FLAGS}")

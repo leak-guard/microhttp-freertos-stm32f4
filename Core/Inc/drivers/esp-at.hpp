@@ -1,5 +1,6 @@
 #pragma once
 #include <leakguard/staticstring.hpp>
+#include <leakguard/staticvector.hpp>
 
 #include <array>
 #include <cstdint>
@@ -10,9 +11,11 @@
 #include <stm32f4xx_hal.h>
 #include <task.h>
 
-#define ESP_AT_MAX_IPD_BYTES 2920
-#define ESP_LINE_BUFFER_SIZE 512
-#define ESP_RESPONSE_BUFFER_SIZE 2048
+#define ESP_AT_MAX_IPD_BYTES      2920
+#define ESP_LINE_BUFFER_SIZE      512
+#define ESP_RESPONSE_BUFFER_SIZE  2048
+#define ESP_AP_LIST_SIZE          20
+#define ESP_IP_STRING_SIZE        16
 #define ESP_RX_DONE (1 << 0)
 #define ESP_READY (1 << 1)
 
@@ -58,6 +61,44 @@ namespace lg
       STATION_AND_AP,
     };
 
+    enum class Encryption {
+      OPEN,
+      WEP,
+      WPA_PSK,
+      WPA2_PSK,
+      WPA_WPA2_PSK,
+      WPA2_ENTERPRISE,
+      WPA3_PSK,
+      WPA2_WPA3_PSK,
+      WAPI_PSK,
+      OWE
+    };
+
+    enum class CipherType {
+      NONE,
+      WEP40,
+      WEP104,
+      TKIP,
+      CCMP,
+      TKIP_AND_CCMP,
+      AES_CMAC_128,
+      UNKNOWN,
+    };
+
+    struct AccessPoint {
+      Encryption encryption;
+      StaticString<32> ssid;
+      int rssi;
+      StaticString<18> mac;
+      int channel;
+      int freqOffset;
+      int freqCalVal;
+      CipherType pairwiseCipher;
+      CipherType groupCipher;
+      int bgn;
+      bool wpsEnabled;
+    };
+
     EspAtDriver(UART_HandleTypeDef *iface)
       : m_usart(iface), m_ready(false), m_currentResponse(EspResponse::ESP_TIMEOUT), m_requestInitiator(nullptr), m_waitingForPrompt(false), m_ipdLinkId(0), m_ipdRemainingBytes(0), m_connectionOpen({false}), m_connectionLastActivity({0})
     {
@@ -75,7 +116,16 @@ namespace lg
     EspResponse sendData(int linkId, const char *data, std::size_t size);
     EspResponse setWifiMode(EspWifiMode mode);
     EspResponse joinAccessPoint(const char* ssid, const char* password);
-    EspResponse listAccessPoints();
+    EspResponse listAccessPoints(StaticVector<AccessPoint, ESP_AP_LIST_SIZE>& out);
+    EspResponse quitAccessPoint();
+    EspResponse setupSoftAp(const char* ssid, 
+      const char* password, int channel, Encryption encryption);
+    EspResponse queryStationIp(StaticString<ESP_IP_STRING_SIZE>& out);
+    EspResponse disableMdns();
+    EspResponse enableMdns(const char* hostname, const char* service, 
+      std::uint16_t port, const char* instance, const char* proto, 
+      const StaticVector<std::pair<const char*, const char*>, 8>& txtRecords);
+    EspResponse setHostname(const char* hostname);
 
     std::function<void(int)> onConnected;
     std::function<void(int)> onClosed;
@@ -100,6 +150,14 @@ namespace lg
     void clearResponsePrefix();
     void setResponsePrefix(const char *data);
     void appendAtString(const char *data);
+
+    int readAtInteger(
+      const StaticString<ESP_RESPONSE_BUFFER_SIZE>& buffer, std::size_t& position);
+
+    template <std::size_t outSize>
+    void readAtString(
+      const StaticString<ESP_RESPONSE_BUFFER_SIZE>& buffer, 
+      std::size_t& position, StaticString<outSize>& out);
 
     void parseEspResponse(const StaticString<ESP_LINE_BUFFER_SIZE> &buffer);
     bool parseEspNotification(const StaticString<ESP_LINE_BUFFER_SIZE> &buffer);
@@ -127,7 +185,7 @@ namespace lg
     StaticTask_t m_initTaskTcb;
     StaticTask_t m_uartRxTaskTcb;
     StaticTask_t m_connectionCloserTaskTcb;
-    std::array<configSTACK_DEPTH_TYPE, 64> m_initTaskStack;
+    std::array<configSTACK_DEPTH_TYPE, 128> m_initTaskStack;
     std::array<configSTACK_DEPTH_TYPE, 256> m_uartRxTaskStack;
     std::array<configSTACK_DEPTH_TYPE, 64> m_connectionCloserTaskStack;
 

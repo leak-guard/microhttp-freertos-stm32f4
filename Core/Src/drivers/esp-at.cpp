@@ -189,7 +189,7 @@ namespace lg
     return result;
   }
 
-  auto EspAtDriver::listAccessPoints() -> EspResponse
+  auto EspAtDriver::listAccessPoints(StaticVector<AccessPoint, ESP_AP_LIST_SIZE>& out) -> EspResponse
   {
     static constexpr auto COMMAND_TIMEOUT = 10000;
 
@@ -198,9 +198,124 @@ namespace lg
 
     auto response = sendCommandDirectAndWait("AT+CWLAP", COMMAND_TIMEOUT);
 
-    // TODO: parse response
+    if (response == EspResponse::OK) {
+      out.Clear();
+      std::size_t position = 0;
 
-    return m_currentResponse;
+      while (out.GetSize() < out.GetCapacity()) {
+        position += 8; // Length of "+CWLAP:("
+
+        if (position >= m_responseBuffer.GetSize()) {
+          break;
+        }
+
+        AccessPoint pnt;
+        pnt.encryption = static_cast<Encryption>(readAtInteger(m_responseBuffer, position));
+        readAtString(m_responseBuffer, position, pnt.ssid);
+        pnt.rssi = readAtInteger(m_responseBuffer, position);
+        readAtString(m_responseBuffer, position, pnt.mac);
+        pnt.channel = readAtInteger(m_responseBuffer, position);
+        pnt.freqOffset = readAtInteger(m_responseBuffer, position);
+        pnt.freqCalVal = readAtInteger(m_responseBuffer, position);
+        pnt.pairwiseCipher = static_cast<CipherType>(readAtInteger(m_responseBuffer, position));
+        pnt.groupCipher = static_cast<CipherType>(readAtInteger(m_responseBuffer, position));
+        pnt.bgn = readAtInteger(m_responseBuffer, position);
+        pnt.wpsEnabled = readAtInteger(m_responseBuffer, position) != 0;
+
+        out.Append(pnt);
+      }
+    }
+
+    return response;
+  }
+
+  auto EspAtDriver::quitAccessPoint() -> EspResponse
+  {
+    auto lock = acquireLock();
+    clearResponsePrefix();
+    return sendCommandDirectAndWait("AT+CWQAP");
+  }
+
+  auto EspAtDriver::setupSoftAp(const char* ssid, 
+      const char* password, int channel, Encryption encryption) -> EspResponse
+  {
+    auto lock = acquireLock();
+    clearResponsePrefix();
+    m_txLineBuffer = "AT+CWSAP=";
+    appendAtString(ssid);
+    m_txLineBuffer += ',';
+    appendAtString(password);
+    m_txLineBuffer += ',';
+    m_txLineBuffer += StaticString<1>::Of(channel);
+    m_txLineBuffer += ',';
+    m_txLineBuffer += StaticString<1>::Of(static_cast<int>(encryption));
+    m_txLineBuffer += "\r\n";
+    return sendCommandBufferAndWait();
+  }
+
+  auto EspAtDriver::queryStationIp(StaticString<ESP_IP_STRING_SIZE>& out) -> EspResponse
+  {
+    auto lock = acquireLock();
+    setResponsePrefix("+CIPSTA:ip:");
+
+    auto response = sendCommandDirectAndWait("AT+CIPSTA?");
+
+    if (response == EspResponse::OK) {
+      m_responseBuffer.Skip(11); // Length of "+CIPSTA:ip:"
+      m_responseBuffer.Truncate(m_responseBuffer.GetSize() - 2); //Cut off \r\n
+      out = m_responseBuffer;
+    }
+
+    return response;
+  }
+
+  auto EspAtDriver::disableMdns() -> EspResponse
+  {
+    auto lock = acquireLock();
+    clearResponsePrefix();
+    return sendCommandDirectAndWait("AT+MDNS=0");
+  }
+
+  auto EspAtDriver::enableMdns(const char* hostname, const char* service, 
+    std::uint16_t port, const char* instance, const char* proto, 
+    const StaticVector<std::pair<const char*, const char*>, 8>& txtRecords) -> EspResponse
+  {
+    auto lock = acquireLock();
+    clearResponsePrefix();
+    m_txLineBuffer = "AT+MDNS=1,";
+    appendAtString(hostname);
+    m_txLineBuffer += ',';
+    appendAtString(service);
+    m_txLineBuffer += ',';
+    m_txLineBuffer += StaticString<5>::Of(port);
+    m_txLineBuffer += ',';
+    appendAtString(instance);
+    m_txLineBuffer += ',';
+    appendAtString(proto);
+    m_txLineBuffer += ',';
+    m_txLineBuffer += StaticString<1>::Of(txtRecords.GetSize());
+
+    for (const auto& record : txtRecords) {
+      m_txLineBuffer += ',';
+      appendAtString(record.first);
+      m_txLineBuffer += ',';
+      appendAtString(record.second);
+    }
+
+    m_txLineBuffer += "\r\n";
+    return sendCommandBufferAndWait();
+  }
+
+  auto EspAtDriver::setHostname(const char* hostname) -> EspResponse
+  {
+    auto lock = acquireLock();
+    clearResponsePrefix();
+
+    m_txLineBuffer = "AT+CWHOSTNAME=";
+    appendAtString(hostname);
+    m_txLineBuffer += "\r\n";
+
+    return sendCommandBufferAndWait();
   }
 
   void EspAtDriver::initTaskMain()
@@ -219,15 +334,15 @@ namespace lg
 
       sendCommandDirectAndWait("ATE0");
       sendCommandDirectAndWait("AT+SYSSTORE=0");
+      //sendCommandDirectAndWait("AT+CWMODE=3");
       sendCommandDirectAndWait("AT+CWMODE=2");
-      // sendCommandDirectAndWait("AT+CWMODE=1");
       sendCommandDirectAndWait("AT+CIPMODE=0");
       sendCommandDirectAndWait("AT+CIPMUX=1");
       sendCommandDirectAndWait("AT+CIPDINFO=0");
       sendCommandDirectAndWait("AT+CIPV6=0");
       sendCommandDirectAndWait("AT+CIPRECVTYPE=5,0");
       auto resp = sendCommandDirectAndWait("AT+CWSAP=\"espat_test2\",\"passw0rd123\",5,3");
-      // auto resp = EspResponse::OK;
+      //auto resp = EspResponse::OK;
 
       if (resp != EspResponse::OK) {
         Device::get().setError();
@@ -235,8 +350,12 @@ namespace lg
         m_ready = true;
       }
     }
+    setHostname("leakguardtest");
 
-    listAccessPoints();
+    StaticVector<std::pair<const char*, const char*>, 8> records;
+    records.Append(std::make_pair("meta", "some data"));
+    enableMdns("espik", "leakguard", 80, "espik2", "_tcp", records);
+
     // Suspend self
     vTaskSuspend(NULL);
   }
@@ -366,6 +485,94 @@ namespace lg
 
     m_txLineBuffer += '"';
   }
+  
+  int EspAtDriver::readAtInteger(
+    const StaticString<ESP_RESPONSE_BUFFER_SIZE>& buffer, std::size_t& position)
+  {
+    std::size_t currentPos = position;
+    bool negative = false;
+    int out = 0;
+
+    if (position < buffer.GetSize() && buffer[currentPos] == '-') {
+      negative = true;
+      ++currentPos;
+    }
+
+    while (true) {
+      if (position >= buffer.GetSize()) {
+        break;
+      }
+
+      char c = buffer[currentPos];
+      if (c == ',' || c == '\r' || c == '\n') {
+        while (c == ',' || c == '\r' || c == '\n') {
+          ++currentPos;
+          c = buffer[currentPos];
+        }
+
+        break;
+      }
+
+      if (std::isdigit(c)) {
+        out *= 10;
+        out += c - '0';
+      }
+
+      ++currentPos;
+    }
+
+    position = currentPos;
+    return negative ? -out : out;
+  }
+    
+  template <std::size_t outSize>
+  void EspAtDriver::readAtString(
+    const StaticString<ESP_RESPONSE_BUFFER_SIZE>& buffer, 
+    std::size_t& position, StaticString<outSize>& out)
+  {
+    std::size_t currentPos = position;
+    bool isEscaping = false;
+    out.Clear();
+
+    if (position >= buffer.GetSize() || buffer[position] != '"') {
+      return;
+    }
+
+    ++currentPos;
+
+    while (true) {
+      if (position >= buffer.GetSize()) {
+        break;
+      }
+
+      char c = buffer[currentPos];
+      if (isEscaping) {
+        out += c;
+        isEscaping = false;
+      } else if (c == '\\') {
+        isEscaping = true;
+      } else if (c == '"') {
+        ++currentPos;
+        break;
+      } else {
+        out += c;
+      }
+
+      ++currentPos;
+    }
+
+    while (currentPos < buffer.GetSize()) {
+      char c = buffer[currentPos];
+
+      if (!(c == ',' || c == '\r' || c == '\n')) {
+        break;
+      }
+
+      ++currentPos;
+    }
+
+    position = currentPos;
+  }
 
   void EspAtDriver::parseEspResponse(
     const StaticString<ESP_LINE_BUFFER_SIZE>& buffer)
@@ -411,8 +618,8 @@ namespace lg
     }
 
     if (buffer.EndsWith(STR("CONNECT"))) {
-      if (buffer.begin()[1] == ',') {
-        int linkId = buffer.begin()[0] - '0';
+      if (buffer[1] == ',') {
+        int linkId = buffer[0] - '0';
         gotConnect(linkId);
         return;
       }
@@ -420,8 +627,8 @@ namespace lg
     }
 
     if (buffer.EndsWith(STR("CLOSED"))) {
-      if (buffer.begin()[1] == ',') {
-        int linkId = buffer.begin()[0] - '0';
+      if (buffer[1] == ',') {
+        int linkId = buffer[0] - '0';
         gotClosed(linkId);
         return;
       }
